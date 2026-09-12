@@ -51,10 +51,18 @@ def read_root():
     return {"status": "Prostock Engine is Running"}
 
 @app.get("/api/predictions")
-def get_latest_predictions():
+def get_latest_predictions(symbol: str = "NIFTY 50"):
     try:
+        valid_indices = ["NIFTY 50", "SENSEX"]
+        if symbol.upper() == "NIFTY":
+            symbol = "NIFTY 50"
+        elif symbol.upper() == "SENSEX":
+            symbol = "SENSEX"
+        if symbol not in valid_indices:
+            return {"status": "error", "message": "Options signals are available for NIFTY 50 and SENSEX only."}
+
         # 1. Fetch latest data (last 100 days to calculate technical indicators)
-        df = downloader.download_index_data("NIFTY 50", start_date=(pd.Timestamp.now() - pd.Timedelta(days=100)).strftime('%Y-%m-%d'))
+        df = downloader.download_index_data(symbol, start_date=(pd.Timestamp.now() - pd.Timedelta(days=100)).strftime('%Y-%m-%d'))
         
         if df is None or df.empty:
             return {"status": "error", "message": "Failed to fetch market data"}
@@ -66,26 +74,42 @@ def get_latest_predictions():
         feature_cols = [col for col in df_features.columns if col not in ['Target', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']]
         prediction = trainer.predict_latest(df_features, feature_cols)
         
-        if prediction:
-            current_price = float(df['Close'].iloc[-1])
-            atr = float(df_features['ATR'].iloc[-1])
-            
-            sl, target = risk_manager.calculate_levels(current_price, atr, side=prediction["signal"])
-            
-            return {
-                "symbol": "NIFTY 50",
-                "price": current_price,
-                "signal": prediction["signal"],
-                "confidence": prediction["confidence"],
-                "stop_loss": sl,
-                "target": target,
-                "timestamp": pd.Timestamp.now().isoformat()
+        current_price = float(df['Close'].iloc[-1])
+        atr = float(df_features['ATR'].iloc[-1])
+
+        if prediction is None:
+            rsi = float(df_features["RSI"].iloc[-1])
+            prediction = {
+                "signal": "BUY" if rsi >= 50 else "SELL",
+                "confidence": min(0.75, 0.5 + abs(rsi - 50) / 100)
             }
+            signal_type = "Educational RSI momentum observation (model unavailable)"
         else:
-            return {"status": "error", "message": "Model not trained yet. Run main_pipeline.py first."}
+            signal_type = "Educational model observation"
+
+        sl, target = risk_manager.calculate_levels(current_price, atr, side=prediction["signal"])
+        option_side = "CALL (CE)" if prediction["signal"] == "BUY" else "PUT (PE)"
+
+        return {
+            "symbol": symbol,
+            "price": current_price,
+            "signal": prediction["signal"],
+            "option_side": option_side,
+            "confidence": prediction["confidence"],
+            "stop_loss": sl,
+            "target": target,
+            "signal_type": signal_type,
+            "execution": "manual_review_required",
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
             
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/api/options-signals")
+def get_options_signals(symbol: str = "NIFTY 50"):
+    """Cloudflare Pages-compatible endpoint shape for reviewed observations."""
+    return get_latest_predictions(symbol)
 
 @app.get("/api/backtest")
 def get_backtest_report():
