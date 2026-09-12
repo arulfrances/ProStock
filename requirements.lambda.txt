@@ -1,0 +1,9 @@
+fastapi
+mangum
+numpy
+pandas
+pyarrow
+requests
+scikit-learn
+xgboost
+yfinance

@@ -24,6 +24,7 @@
             <nav>
                 <ul>
                     <li class="active"><a href="#"><span class="icon">📈</span> Dashboard</a></li>
+                    <li><a href="#"><span class="icon">🧭</span> Options Review</a></li>
                     <li><a href="#"><span class="icon">💼</span> Portfolio</a></li>
                     <li><a href="#"><span class="icon">📜</span> Orders</a></li>
                     <li><a href="#"><span class="icon">🤖</span> AI Models</a></li>
@@ -104,6 +105,10 @@
                     </div>
                 </section>
 
+                <section class="disclaimer-banner">
+                    <strong>Educational signals only.</strong> Review the scenario, position size, and risk before placing any order. Alerts never place trades.
+                </section>
+
                 <section class="chart-section glass">
                     <div class="chart-header">
                         <h3>NIFTY 50 Real-time Analysis</h3>
@@ -113,7 +118,7 @@
 
                 <div class="bottom-grid">
                     <section class="data-table-section glass">
-                        <h3>Latest Signals</h3>
+                        <h3>Latest Market Signals</h3>
                         <div class="table-container">
                             <table id="signals-table">
                                 <thead>
@@ -123,13 +128,43 @@
                                         <th>Entry</th>
                                         <th>Stop Loss</th>
                                         <th>Target</th>
-                                        <th>Action</th>
+                                        <th>Review</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <!-- Data will be loaded via JS -->
                                 </tbody>
                             </table>
+                        </div>
+
+                        <div id="options-review-view" class="tab-content">
+                            <section class="glass">
+                                <div class="report-header">
+                                    <div>
+                                        <h3>Options Signal Review</h3>
+                                        <p class="section-copy">Model observations based on historical momentum. No order is sent from this dashboard.</p>
+                                    </div>
+                                    <button class="btn-sm active" onclick="refreshOptionIdeas()">Refresh observations</button>
+                                </div>
+                                <div class="options-grid" id="options-ideas">
+                                    <p class="metric-label">Loading NIFTY and SENSEX observations...</p>
+                                </div>
+                            </section>
+                            <section class="data-table-section glass">
+                                <div class="report-header">
+                                    <div>
+                                        <h3>Reviewed Signals</h3>
+                                        <p class="section-copy">Saved in this browser for later review.</p>
+                                    </div>
+                                    <button class="btn-sm" onclick="clearReviewedSignals()">Clear history</button>
+                                </div>
+                                <div class="table-container">
+                                    <table id="reviewed-signals-table">
+                                        <thead><tr><th>Time</th><th>Index</th><th>Observation</th><th>Reference</th><th>Stop reference</th><th>Status</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </section>
                         </div>
                     </section>
 
@@ -230,6 +265,15 @@
                         <div style="margin-top: 10px;">
                             <label class="metric-label">Max Daily Loss (%)</label>
                             <input type="number" value="2.0" class="glass-input">
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <label class="metric-label">Telegram alert status</label>
+                            <p class="section-copy">Configure Telegram and alert-key secrets in Cloudflare Pages. Alerts are sent only after you select “Send alert”.</p>
+                        </div>
+                        <div>
+                            <label class="metric-label" for="alert-api-key">Alert access key</label>
+                            <input id="alert-api-key" type="password" autocomplete="off" class="glass-input" placeholder="Required to send Telegram alerts">
+                            <p class="section-copy">Stored only for this browser session.</p>
                         </div>
                         <button class="btn-sm active" style="width: fit-content; padding: 10px 30px;">Save All
                             Settings</button>

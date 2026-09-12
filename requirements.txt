@@ -5,11 +5,13 @@ xgboost
 requests
 beautifulsoup4
 fastapi
+mangum
 uvicorn
 sqlalchemy
 psycopg2-binary
 python-dotenv
 yfinance
+pyarrow
 plotly
 matplotlib
 paytmmoney-python-sdk

@@ -198,6 +198,16 @@ header {
     border: 1px solid var(--danger);
 }
 
+.disclaimer-banner {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 14px;
+    color: #fde68a;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 14px 18px;
+}
+
 /* Metrics Grid */
 .metrics-grid {
     display: grid;
@@ -416,4 +426,64 @@ td {
 .report-value {
     font-size: 18px;
     font-weight: 700;
+}
+
+.section-copy {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 5px;
+}
+
+.options-grid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.option-card {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 20px;
+}
+
+.option-card-header, .option-actions {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.option-levels {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 1fr 1fr;
+    margin: 20px 0;
+}
+
+.option-levels dt {
+    color: var(--text-secondary);
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.option-levels dd {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.risk-note {
+    border-left: 3px solid #fbbf24;
+    color: #fcd34d;
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 0 0 18px;
+    padding-left: 10px;
+}
+
+.empty-state {
+    color: var(--text-secondary);
+    text-align: center;
 }

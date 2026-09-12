@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Prostock educational market-observation API
+
+Resources:
+  MarketApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods:
+          - GET
+        AllowHeaders:
+          - content-type
+        AllowOrigins:
+          - "*"
+
+  MarketApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Architectures:
+        - x86_64
+      MemorySize: 3008
+      Timeout: 60
+      EphemeralStorage:
+        Size: 1024
+      Events:
+        ApiRequest:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MarketApi
+            Path: /{proxy+}
+            Method: GET
+    Metadata:
+      DockerTag: python3.11-v1
+      DockerContext: .
+      Dockerfile: Dockerfile
+
+Outputs:
+  MarketApiBase:
+    Description: Set this value as MARKET_API_BASE in Cloudflare Pages.
+    Value: !Sub "https://${MarketApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"

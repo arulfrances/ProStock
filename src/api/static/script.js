@@ -1,6 +1,7 @@
 // Prostock Dashboard Logic
 const API_BASE = '/api';
 let currentSymbol = 'NIFTY 50';
+const REVIEW_STORAGE_KEY = 'prostock-reviewed-option-signals';
 
 // Initialize Chart
 function initChart() {
@@ -45,7 +46,7 @@ async function updateSignals() {
                 <td>₹${data.price.toFixed(2)}</td>
                 <td style="color: #ef4444; font-weight: 700;">₹${data.stop_loss}</td>
                 <td style="color: #22c55e; font-weight: 700;">₹${data.target}</td>
-                <td><button class="btn-sm active">TRADE</button></td>
+                <td><button class="btn-sm active" onclick='recordReviewedSignal(${JSON.stringify(data).replace(/'/g, "&#39;")})'>REVIEW</button></td>
             </tr>
         `;
 
@@ -241,9 +242,107 @@ function showView(name) {
 
     if (name.includes('dashboard')) document.getElementById('dashboard-view').classList.add('active');
     else if (name.includes('portfolio')) document.getElementById('portfolio-view').classList.add('active');
+    else if (name.includes('options review')) {
+        document.getElementById('options-review-view').classList.add('active');
+        refreshOptionIdeas();
+    }
     else if (name.includes('orders')) document.getElementById('orders-view').classList.add('active');
     else if (name.includes('models')) document.getElementById('models-view').classList.add('active');
     else if (name.includes('settings')) document.getElementById('settings-view').classList.add('active');
+}
+
+function optionIdeaMarkup(data) {
+    if (data.status === 'error') {
+        return `<article class="option-card"><h4>${data.symbol || 'Index'}</h4><p class="section-copy">${data.message}</p></article>`;
+    }
+
+    const directionClass = data.signal === 'BUY' ? 'badge-buy' : 'badge-sell';
+    return `<article class="option-card">
+        <div class="option-card-header"><h4>${data.symbol}</h4><span class="badge ${directionClass}">${data.option_side}</span></div>
+        <p class="section-copy">${data.signal_type}</p>
+        <dl class="option-levels">
+            <div><dt>Index reference</dt><dd>₹${data.price.toFixed(2)}</dd></div>
+            <div><dt>Confidence</dt><dd>${(data.confidence * 100).toFixed(0)}%</dd></div>
+            <div><dt>Stop reference</dt><dd>₹${data.stop_loss}</dd></div>
+            <div><dt>Target reference</dt><dd>₹${data.target}</dd></div>
+        </dl>
+        <p class="risk-note">These levels refer to the index, not an option premium. Choose strike, expiry, liquidity, and position size independently.</p>
+        <div class="option-actions">
+            <button class="btn-sm" onclick='recordReviewedSignal(${JSON.stringify(data).replace(/'/g, "&#39;")})'>Mark reviewed</button>
+            <button class="btn-sm active" onclick='sendTelegramAlert(${JSON.stringify(data).replace(/'/g, "&#39;")})'>Send alert</button>
+        </div>
+    </article>`;
+}
+
+async function refreshOptionIdeas() {
+    const container = document.getElementById('options-ideas');
+    if (!container) return;
+    container.innerHTML = '<p class="metric-label">Refreshing educational observations...</p>';
+    try {
+        const responses = await Promise.all(['NIFTY 50', 'SENSEX'].map(symbol =>
+            fetch(`${API_BASE}/options-signals?symbol=${encodeURIComponent(symbol)}`).then(response => response.json())
+        ));
+        container.innerHTML = responses.map(optionIdeaMarkup).join('');
+    } catch (error) {
+        console.error('Could not load options observations', error);
+        container.innerHTML = '<p class="metric-label">Observations are unavailable. Start the FastAPI service or deploy its API separately.</p>';
+    }
+}
+
+function getReviewedSignals() {
+    return JSON.parse(localStorage.getItem(REVIEW_STORAGE_KEY) || '[]');
+}
+
+function recordReviewedSignal(signal) {
+    const reviewed = getReviewedSignals();
+    const entry = { ...signal, reviewed_at: new Date().toISOString() };
+    localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify([entry, ...reviewed].slice(0, 100)));
+    renderReviewedSignals();
+}
+
+function renderReviewedSignals() {
+    const tbody = document.querySelector('#reviewed-signals-table tbody');
+    if (!tbody) return;
+    const rows = getReviewedSignals();
+    tbody.innerHTML = rows.length ? rows.map(entry => `<tr>
+        <td>${new Date(entry.reviewed_at).toLocaleString('en-IN')}</td>
+        <td>${entry.symbol}</td>
+        <td><span class="badge ${entry.signal === 'BUY' ? 'badge-buy' : 'badge-sell'}">${entry.option_side}</span></td>
+        <td>₹${Number(entry.price).toFixed(2)}</td>
+        <td>₹${entry.stop_loss}</td>
+        <td>Reviewed</td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty-state">No signals reviewed yet.</td></tr>';
+}
+
+function clearReviewedSignals() {
+    localStorage.removeItem(REVIEW_STORAGE_KEY);
+    renderReviewedSignals();
+}
+
+async function sendTelegramAlert(signal) {
+    const alertKey = document.getElementById('alert-api-key')?.value;
+    if (!alertKey) {
+        alert('Enter the alert access key in Settings before sending an alert.');
+        return;
+    }
+
+    const message = `Prostock educational observation\n\n${signal.symbol}: ${signal.option_side}\nIndex reference: ₹${signal.price.toFixed(2)}\nStop reference: ₹${signal.stop_loss}\nTarget reference: ₹${signal.target}\nConfidence: ${(signal.confidence * 100).toFixed(0)}%\n\nManual review required. No trade is executed by this alert.`;
+    try {
+        const response = await fetch('/api/telegram-alert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${alertKey}`
+            },
+            body: JSON.stringify({ message })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to send Telegram alert');
+        alert('Telegram alert sent. No trade was placed.');
+    } catch (error) {
+        console.error('Telegram alert failed', error);
+        alert(error.message);
+    }
 }
 
 // Fetch and Update User Profile from Indstocks
@@ -335,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateOrders();
     updateProfile();
     loadBacktest();
+    renderReviewedSignals();
     refreshClock();
 
     // Refresh loop

@@ -19,7 +19,9 @@ class NSEDownloader:
         "Connection": "keep-alive"
     }
 
-    def __init__(self, data_dir="data"):
+    def __init__(self, data_dir=None):
+        if data_dir is None:
+            data_dir = "/tmp/prostock-data" if os.getenv("AWS_LAMBDA_FUNCTION_NAME") else "data"
         self.data_dir = data_dir
         self.raw_dir = os.path.join(data_dir, "raw")
         self.processed_dir = os.path.join(data_dir, "processed")
