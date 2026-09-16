@@ -98,6 +98,28 @@ and `template.yaml`. Containers are used because the data and ML libraries are t
 reliable Lambda ZIP deployment. This API returns educational observations only and cannot place
 broker orders.
 
+## Keeping the Render deployment awake 24/7 (IST)
+
+Render's free web service tier spins the dyno down after ~15 minutes without inbound traffic,
+so the first request after idling can take 30-60s to "wake up". To keep
+`prostock-market-api.onrender.com` responsive around the clock:
+
+1. In this repo, go to **Settings > Secrets and variables > Actions** and add a secret named
+   `RENDER_SERVICE_URL` with the value `https://prostock-market-api.onrender.com`.
+2. The included workflow at `.github/workflows/keep-alive.yml` pings `/api/health` every 10
+   minutes using GitHub Actions' scheduler, which prevents the free-tier dyno from idling.
+3. `/api/health` is intentionally lightweight (no data download or model inference) so the
+   pings don't add load or cost.
+
+Notes:
+- GitHub Actions cron schedules are best-effort and can lag a few minutes during high load;
+  this is fine for keep-alive purposes but isn't a guaranteed uptime SLA.
+- For a guaranteed always-on instance with no cold starts, upgrade the Render service to a
+  paid plan (Starter or above), which doesn't sleep.
+- You can also point any external uptime monitor (e.g., UptimeRobot, cron-job.org) at
+  `/api/health` as an alternative or backup to the GitHub Action.
+
+
 ### Prerequisites
 
 Install and authenticate the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html),

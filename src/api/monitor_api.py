@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -14,9 +17,50 @@ from src.features.feature_engineer import FeatureEngineer
 from src.models.trainer import ModelTrainer
 from src.backtest.engine import BacktestEngine
 from src.execution.risk_manager import RiskManager
+from src.execution.realtime_signal_engine import RealtimeSignalEngine
+from src.execution.indstocks_refresh_scheduler import IndstocksRefreshScheduler
 from src.utils.market_status import is_market_open
 
+logger = logging.getLogger("MonitorApi")
+
 app = FastAPI(title="Prostock Market API")
+
+realtime_engine = RealtimeSignalEngine()
+_engine_task = None
+_indstocks_refresh_task = None
+
+
+@app.on_event("startup")
+async def start_realtime_engine():
+    global _engine_task
+    if os.getenv("REALTIME_ENGINE_ENABLED", "true").lower() == "true":
+        _engine_task = asyncio.create_task(realtime_engine.run_forever())
+        logger.info("Realtime signal engine started in background.")
+
+
+@app.on_event("startup")
+async def start_indstocks_refresh():
+    global _indstocks_refresh_task
+    if os.getenv("INDSTOCKS_AUTO_REFRESH_ENABLED", "true").lower() == "true":
+        _indstocks_refresh_task = asyncio.create_task(indstocks_refresh_scheduler.run_forever())
+        logger.info(
+            f"Indstocks instrument refresh scheduled every {indstocks_refresh_scheduler.interval_hours}h."
+        )
+
+
+@app.on_event("shutdown")
+async def stop_realtime_engine():
+    realtime_engine.stop()
+    if _engine_task:
+        _engine_task.cancel()
+    await realtime_engine.notifier.aclose()
+
+
+@app.on_event("shutdown")
+async def stop_indstocks_refresh():
+    indstocks_refresh_scheduler.stop()
+    if _indstocks_refresh_task:
+        _indstocks_refresh_task.cancel()
 
 # Initialize components
 downloader = NSEDownloader()
@@ -46,9 +90,16 @@ BROKER_CONTEXT = {
     }
 }
 
+indstocks_refresh_scheduler = IndstocksRefreshScheduler(BROKER_CONTEXT["brokers"]["indstocks"])
+
 @app.get("/api")
 def read_root():
     return {"status": "Prostock Engine is Running"}
+
+@app.get("/api/health")
+def health_check():
+    """Cheap endpoint for uptime pingers; does no downstream I/O."""
+    return {"status": "ok", "time": pd.Timestamp.now().isoformat()}
 
 @app.get("/api/predictions")
 def get_latest_predictions(symbol: str = "NIFTY 50"):
@@ -110,6 +161,40 @@ def get_latest_predictions(symbol: str = "NIFTY 50"):
 def get_options_signals(symbol: str = "NIFTY 50"):
     """Cloudflare Pages-compatible endpoint shape for reviewed observations."""
     return get_latest_predictions(symbol)
+
+@app.get("/api/realtime/status")
+def get_realtime_status():
+    """
+    Returns the realtime engine's latest blended-confidence evaluation for
+    each tracked symbol, including whether it cleared the high-conviction
+    (>= MIN_CONFIDENCE) bar that triggers a Telegram alert.
+    """
+    return {
+        "engine_running": _engine_task is not None and not _engine_task.done(),
+        "poll_seconds": realtime_engine.poll_seconds,
+        "min_confidence": realtime_engine.signal_engine.min_confidence,
+        "telegram_configured": realtime_engine.notifier.is_configured(),
+        "symbols": realtime_engine.last_status,
+    }
+
+@app.get("/api/indstocks/refresh-status")
+def get_indstocks_refresh_status():
+    """Reports when the Indstocks instrument master was last pulled from the web."""
+    gateway = BROKER_CONTEXT["brokers"]["indstocks"]
+    return {
+        "auto_refresh_running": _indstocks_refresh_task is not None and not _indstocks_refresh_task.done(),
+        "interval_hours": indstocks_refresh_scheduler.interval_hours,
+        "segments": indstocks_refresh_scheduler.segments,
+        "last_refreshed": gateway.last_instrument_refresh,
+        "cached_instrument_count": len(gateway.instruments_cache),
+    }
+
+@app.post("/api/indstocks/refresh-now")
+async def trigger_indstocks_refresh():
+    """Forces an immediate instrument master refresh from the web (outside the 24h cycle)."""
+    await indstocks_refresh_scheduler.refresh_now()
+    gateway = BROKER_CONTEXT["brokers"]["indstocks"]
+    return {"status": "success", "last_refreshed": gateway.last_instrument_refresh}
 
 @app.get("/api/backtest")
 def get_backtest_report():

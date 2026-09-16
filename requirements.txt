@@ -18,4 +18,7 @@ paytmmoney-python-sdk
 pyotp
 gunicorn
 uvicorn
+httpx
+feedparser
+vaderSentiment
 # neo-api-client (Install via: pip install neo-api-client)

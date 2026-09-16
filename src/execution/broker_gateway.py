@@ -109,12 +109,15 @@ class IndstocksGateway(BrokerGateway):
         super().__init__(api_key, access_token)
         self.base_url = "https://api.indstocks.com"
         self.instruments_cache = {} # Map symbol -> security_id
+        self.last_instrument_refresh = {} # Map segment -> ISO timestamp of last successful fetch
 
     def fetch_instruments(self, segment="equity"):
         """
-        Fetches instrument master CSV and caches it.
+        Fetches instrument master CSV from the web and caches it.
         Segments: equity, fno, index
         """
+        import datetime
+
         url = f"{self.base_url}/market/instruments?source={segment}"
         headers = {"Authorization": self.access_token}
         
@@ -132,6 +135,7 @@ class IndstocksGateway(BrokerGateway):
                     sec_id = row.get('SECURITY_ID')
                     if symbol and sec_id:
                         self.instruments_cache[symbol] = sec_id
+                self.last_instrument_refresh[segment] = datetime.datetime.utcnow().isoformat()
                 self.logger.info(f"Loaded {len(self.instruments_cache)} instruments for {segment}")
             else:
                 self.logger.error(f"Failed to fetch {segment} instruments: {response.status_code}")

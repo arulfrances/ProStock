@@ -274,18 +274,39 @@ function optionIdeaMarkup(data) {
     </article>`;
 }
 
+function mobileHintMarkup(data) {
+    if (!data || data.status === 'error') {
+        return `<article class="hint-card"><h5>${(data && data.symbol) || 'Index'}</h5><p class="section-copy">${(data && data.message) || 'Unavailable'}</p></article>`;
+    }
+    const directionClass = data.signal === 'BUY' ? 'badge-buy' : 'badge-sell';
+    return `<article class="hint-card">
+        <div class="hint-card-top">
+            <h5>${data.symbol}</h5>
+            <span class="badge ${directionClass}">${data.option_side}</span>
+        </div>
+        <p class="hint-confidence">${(data.confidence * 100).toFixed(0)}% confidence</p>
+        <div class="hint-levels">
+            <span>SL ₹${data.stop_loss}</span>
+            <span>Target ₹${data.target}</span>
+        </div>
+    </article>`;
+}
+
 async function refreshOptionIdeas() {
     const container = document.getElementById('options-ideas');
-    if (!container) return;
-    container.innerHTML = '<p class="metric-label">Refreshing educational observations...</p>';
+    const hintGrid = document.getElementById('mobile-hint-grid');
+    if (hintGrid) hintGrid.innerHTML = '<p class="metric-label">Refreshing hints...</p>';
+    if (!container && !hintGrid) return;
     try {
         const responses = await Promise.all(['NIFTY 50', 'SENSEX'].map(symbol =>
             fetch(`${API_BASE}/options-signals?symbol=${encodeURIComponent(symbol)}`).then(response => response.json())
         ));
-        container.innerHTML = responses.map(optionIdeaMarkup).join('');
+        if (container) container.innerHTML = responses.map(optionIdeaMarkup).join('');
+        if (hintGrid) hintGrid.innerHTML = responses.map(mobileHintMarkup).join('');
     } catch (error) {
         console.error('Could not load options observations', error);
-        container.innerHTML = '<p class="metric-label">Observations are unavailable. Start the FastAPI service or deploy its API separately.</p>';
+        if (container) container.innerHTML = '<p class="metric-label">Observations are unavailable. Start the FastAPI service or deploy its API separately.</p>';
+        if (hintGrid) hintGrid.innerHTML = '<p class="metric-label">Hints unavailable right now.</p>';
     }
 }
 
@@ -436,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadBacktest();
     renderReviewedSignals();
     refreshClock();
+    refreshOptionIdeas();
 
     // Refresh loop
     setInterval(refreshClock, 1000); // Live Clock
@@ -443,4 +465,5 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateLiveMetrics, 2000); // Live index refresh (including BankNifty/Sensex)
     setInterval(updatePortfolio, 30000);
     setInterval(updateOrders, 30000);
+    setInterval(refreshOptionIdeas, 20000); // NIFTY/SENSEX buy-sell hint refresh
 });
